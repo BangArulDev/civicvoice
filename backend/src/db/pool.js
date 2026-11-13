@@ -1,14 +1,7 @@
-const path = require('path');
-const dotenv = require('dotenv');
 const { Pool } = require('pg');
+const config = require('../common/config');
 
-// Memuat variabel lingkungan dari .env
-// Memeriksa root proyek (~/civicvoice/.env) dan folder backend (~/civicvoice/backend/.env)
-dotenv.config();
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
-
-const connectionString = process.env.DATABASE_URL;
+const connectionString = config.db.url;
 
 if (!connectionString) {
   console.error(
