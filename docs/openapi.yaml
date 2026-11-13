@@ -1,0 +1,1091 @@
+openapi: 3.0.3
+info:
+  title: CivicVoice API
+  version: 1.0.0
+  description: |
+    REST API platform pengaduan publik dan aspirasi warga berbasis geotagging.
+    Wilayah layanan: Kabupaten Grobogan, Jawa Tengah.
+    Mata Kuliah Pengembangan Berbasis Platform (GA07309), Universitas An Nuur.
+    Autentikasi memakai JWT (header Authorization: Bearer <token>) dengan RBAC
+    untuk peran warga, operator, skpd, dan admin.
+  contact:
+    name: Amrully Arun Hadi
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Lokal (Linux/WSL)
+tags:
+  - name: Auth
+    description: Registrasi, login, dan sesi
+  - name: Complaints
+    description: M1 - Aduan warga dengan geotagging
+  - name: Triage
+    description: M2 - Triase dan disposisi ke SKPD
+  - name: SLA
+    description: M3 - SLA dan progres penanganan
+  - name: Public
+    description: M4 - Transparansi publik dan heatmap
+  - name: Admin
+    description: Pengelolaan sistem
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrasi warga
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Akun dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: Email sudah terdaftar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Perbarui access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token baru
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Profil pengguna yang sedang login
+      operationId: getMe
+      responses:
+        '200':
+          description: Profil pengguna
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /complaints:
+    post:
+      tags: [Complaints]
+      summary: Buat aduan baru (warga atau anonim)
+      description: |
+        Token opsional. Tanpa token atau dengan isAnonymous=true, identitas pelapor
+        dienkripsi (AES-256-GCM) dan tidak ditampilkan di data publik.
+        Koordinat divalidasi: berada di dalam poligon Kabupaten Grobogan,
+        akurasi GPS maksimal 100 m, dan konsisten dengan metadata foto.
+        Rate limit: 5 aduan per pengguna atau IP per jam.
+      operationId: createComplaint
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateComplaintRequest'
+      responses:
+        '201':
+          description: Aduan tersimpan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintCreated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /complaints/mine:
+    get:
+      tags: [Complaints]
+      summary: Daftar aduan milik sendiri
+      operationId: listMyComplaints
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/StatusFilter'
+      responses:
+        '200':
+          description: Daftar aduan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /complaints/track/{ticketNo}:
+    get:
+      tags: [Complaints]
+      summary: Lacak status aduan dengan nomor tiket
+      operationId: trackComplaint
+      security: []
+      parameters:
+        - name: ticketNo
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CV-20261215-0001
+      responses:
+        '200':
+          description: Status aduan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /complaints/{id}:
+    get:
+      tags: [Complaints]
+      summary: Detail aduan (sesuai peran)
+      operationId: getComplaint
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      responses:
+        '200':
+          description: Detail aduan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /triage/queue:
+    get:
+      tags: [Triage]
+      summary: Antrean aduan baru untuk operator
+      description: Peran operator.
+      operationId: getTriageQueue
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Antrean aduan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /triage/{id}/verify:
+    patch:
+      tags: [Triage]
+      summary: Verifikasi, tolak, atau ubah kategori aduan
+      description: Peran operator.
+      operationId: verifyComplaint
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRequest'
+      responses:
+        '200':
+          description: Aduan diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /complaints/{id}/disposition:
+    post:
+      tags: [Triage]
+      summary: Disposisi aduan ke SKPD
+      description: |
+        Peran operator. Mengubah status menjadi didisposisi dan memulai timer SLA
+        (due_at = waktu disposisi + 72 jam) dalam satu transaksi.
+      operationId: disposeComplaint
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DispositionRequest'
+      responses:
+        '201':
+          description: Disposisi dicatat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Disposition'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Aduan belum diverifikasi atau sudah didisposisi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /complaints/{id}/return:
+    post:
+      tags: [Triage]
+      summary: Kembalikan aduan yang salah alamat ke operator
+      description: Peran skpd.
+      operationId: returnComplaint
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Aduan dikembalikan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /skpd/tasks:
+    get:
+      tags: [SLA]
+      summary: Daftar tugas aduan untuk SKPD pengguna
+      description: Peran skpd.
+      operationId: listSkpdTasks
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/StatusFilter'
+      responses:
+        '200':
+          description: Daftar tugas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /complaints/{id}/status:
+    patch:
+      tags: [SLA]
+      summary: Ubah status progres penanganan
+      description: |
+        Peran skpd. Status selesai hanya diterima bila foto bukti penyelesaian
+        sudah diunggah.
+      operationId: updateComplaintStatus
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [diterima, diproses, selesai]
+                note:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Status diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /complaints/{id}/evidence:
+    post:
+      tags: [SLA]
+      summary: Unggah foto bukti penyelesaian
+      description: Peran skpd.
+      operationId: uploadEvidence
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: JPEG atau PNG, maksimal 5 MB
+                note:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Bukti tersimpan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evidence'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /complaints/{id}/sla:
+    get:
+      tags: [SLA]
+      summary: Sisa waktu dan status SLA
+      description: Peran operator, skpd, atau admin.
+      operationId: getSla
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      responses:
+        '200':
+          description: Informasi SLA
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sla'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /public/heatmap:
+    get:
+      tags: [Public]
+      summary: Data titik heatmap terfilter
+      description: |
+        Data teragregasi per sel grid. Identitas pelapor tidak pernah disertakan
+        dan koordinat aduan sensitif dibulatkan.
+      operationId: getHeatmap
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryFilter'
+        - $ref: '#/components/parameters/SkpdFilter'
+        - $ref: '#/components/parameters/StatusFilter'
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Titik heatmap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Heatmap'
+  /public/summary:
+    get:
+      tags: [Public]
+      summary: Ringkasan kinerja penanganan aduan
+      operationId: getPublicSummary
+      security: []
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Ringkasan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSummary'
+  /public/complaints/{id}:
+    get:
+      tags: [Public]
+      summary: Detail publik aduan yang sudah selesai
+      operationId: getPublicComplaint
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ComplaintId'
+      responses:
+        '200':
+          description: Detail publik beserta foto sebelum dan sesudah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicComplaint'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /public/export.csv:
+    get:
+      tags: [Public]
+      summary: Unduh data agregat (CSV)
+      operationId: exportPublicCsv
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryFilter'
+        - $ref: '#/components/parameters/SkpdFilter'
+      responses:
+        '200':
+          description: Berkas CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Daftar pengguna
+      description: Peran admin.
+      operationId: listUsers
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [warga, operator, skpd, admin]
+      responses:
+        '200':
+          description: Daftar pengguna
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Daftar audit log
+      description: Peran admin.
+      operationId: listAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: action
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audit log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ComplaintId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    StatusFilter:
+      name: status
+      in: query
+      schema:
+        $ref: '#/components/schemas/ComplaintStatus'
+    CategoryFilter:
+      name: categoryId
+      in: query
+      schema:
+        type: integer
+    SkpdFilter:
+      name: skpdId
+      in: query
+      schema:
+        type: integer
+  responses:
+    Unauthorized:
+      description: Token tidak ada, tidak valid, atau kedaluwarsa
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Peran tidak memiliki akses
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Data tidak ditemukan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Validasi input gagal
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Melebihi batas permintaan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Koordinat berada di luar wilayah layanan
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: location
+                  issue:
+                    type: string
+                    example: out_of_service_area
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        fullName:
+          type: string
+          maxLength: 150
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    TokenPair:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: Berlaku maksimal 15 menit
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 900
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [warga, operator, skpd, admin]
+        skpdId:
+          type: integer
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    GeoPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          example: -7.0881
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+          example: 110.9167
+        accuracyM:
+          type: number
+          description: Akurasi GPS perangkat (meter)
+          example: 12.5
+        source:
+          type: string
+          enum: [auto, manual]
+          default: auto
+    ComplaintStatus:
+      type: string
+      enum:
+        - baru
+        - diverifikasi
+        - ditolak
+        - didisposisi
+        - diterima
+        - diproses
+        - selesai
+    CreateComplaintRequest:
+      type: object
+      required: [title, categoryId, description, lat, lng, photos]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        categoryId:
+          type: integer
+        description:
+          type: string
+          description: Kronologi kejadian
+        lat:
+          type: number
+        lng:
+          type: number
+        accuracyM:
+          type: number
+        locationSource:
+          type: string
+          enum: [auto, manual]
+          default: auto
+        isAnonymous:
+          type: boolean
+          default: false
+        photos:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            type: string
+            format: binary
+          description: JPEG atau PNG, maksimal 5 MB per foto
+    ComplaintCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticketNo:
+          type: string
+          example: CV-20261215-0001
+        status:
+          $ref: '#/components/schemas/ComplaintStatus'
+        suggestedSkpdId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    Complaint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticketNo:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: integer
+        status:
+          $ref: '#/components/schemas/ComplaintStatus'
+        priority:
+          type: integer
+          enum: [1, 2, 3]
+          description: 1 rendah, 2 sedang, 3 tinggi
+        isAnonymous:
+          type: boolean
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        photos:
+          type: array
+          items:
+            type: string
+            format: uri
+        skpdId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ComplaintPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Complaint'
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+    TrackResult:
+      type: object
+      properties:
+        ticketNo:
+          type: string
+        status:
+          $ref: '#/components/schemas/ComplaintStatus'
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                $ref: '#/components/schemas/ComplaintStatus'
+              note:
+                type: string
+                nullable: true
+              at:
+                type: string
+                format: date-time
+    VerifyRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [verify, reject]
+        categoryId:
+          type: integer
+          description: Isi bila kategori diubah
+        priority:
+          type: integer
+          enum: [1, 2, 3]
+        reason:
+          type: string
+          description: Wajib bila action = reject
+    DispositionRequest:
+      type: object
+      required: [skpdId]
+      properties:
+        skpdId:
+          type: integer
+        note:
+          type: string
+          maxLength: 500
+    Disposition:
+      type: object
+      properties:
+        id:
+          type: integer
+        complaintId:
+          type: string
+          format: uuid
+        skpdId:
+          type: integer
+        operatorId:
+          type: string
+          format: uuid
+        disposedAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+          description: disposedAt + 72 jam
+    Evidence:
+      type: object
+      properties:
+        id:
+          type: integer
+        complaintId:
+          type: string
+          format: uuid
+        photoUrl:
+          type: string
+          format: uri
+        note:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    Sla:
+      type: object
+      properties:
+        complaintId:
+          type: string
+          format: uuid
+        dueAt:
+          type: string
+          format: date-time
+        remainingSeconds:
+          type: integer
+          description: Negatif bila sudah melewati batas
+        state:
+          type: string
+          enum: [on_track, warning, breached, completed]
+        warnedAt:
+          type: string
+          format: date-time
+          nullable: true
+        breachedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    Heatmap:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              lat:
+                type: number
+              lng:
+                type: number
+              count:
+                type: integer
+    PublicSummary:
+      type: object
+      properties:
+        totalComplaints:
+          type: integer
+        resolvedPercent:
+          type: number
+        avgResolutionHours:
+          type: number
+        slaCompliance:
+          type: array
+          items:
+            type: object
+            properties:
+              skpdId:
+                type: integer
+              skpdName:
+                type: string
+              compliancePercent:
+                type: number
+    PublicComplaint:
+      type: object
+      properties:
+        ticketNo:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+        skpdName:
+          type: string
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        beforePhotos:
+          type: array
+          items:
+            type: string
+            format: uri
+        afterPhotos:
+          type: array
+          items:
+            type: string
+            format: uri
+        resolvedAt:
+          type: string
+          format: date-time
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+          example: complaint.disposition
+        entity:
+          type: string
+        entityId:
+          type: string
+        ip:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

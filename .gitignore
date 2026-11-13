@@ -1,0 +1,48 @@
+# Dependensi
+node_modules/
+.pnp
+.pnp.js
+
+# Variabel Lingkungan & Rahasia
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Berkas Unggahan / Uploads
+uploads/
+backend/uploads/
+
+# Pengujian & Cakupan Kode (Coverage)
+coverage/
+.nyc_output/
+
+# Berkas Sistem Operasi & Metadata Windows/WSL
+.DS_Store
+Thumbs.db
+desktop.ini
+*Zone.Identifier
+
+# Berkas Editor / IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Log
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Artefak Build Frontend / Next.js
+.next/
+out/
+build/
+dist/
