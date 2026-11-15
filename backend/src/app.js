@@ -10,6 +10,7 @@ const pool = require('./db/pool');
 const authRouter = require('./modules/auth/routes');
 const adminRouter = require('./modules/admin/routes');
 const complaintRouter = require('./modules/complaint/routes');
+const triageRouter = require('./modules/triage/routes');
 
 const app = express();
 
@@ -92,6 +93,7 @@ apiV1Router.get('/health', async (req, res) => {
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/admin', adminRouter);
 apiV1Router.use('/complaints', complaintRouter);
+apiV1Router.use('/triage', triageRouter);
 
 // Daftarkan router utama dengan prefix /api/v1
 app.use('/api/v1', apiV1Router);
