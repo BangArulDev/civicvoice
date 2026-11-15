@@ -39,7 +39,18 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  // 3. Error kesalahan sintaks payload JSON dari klien
+  // 3. Error pengunggahan berkas dari Multer
+  if (err.name === 'MulterError') {
+    return res.status(422).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: err.message,
+        details: [{ field: 'photos', issue: err.code.toLowerCase() }],
+      },
+    });
+  }
+
+  // 4. Error kesalahan sintaks payload JSON dari klien
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({
       error: {
@@ -50,7 +61,7 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  // 4. Kesalahan tak terduga (500)
+  // 5. Kesalahan tak terduga (500)
   // Detail internal (stack trace) dicatat ke log server untuk debugging developer,
   // tetapi TIDAK PERNAH dibocorkan ke pengguna/klien demi alasan keamanan sistem.
   console.error('[UNEXPECTED SERVER ERROR]', err);

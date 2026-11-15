@@ -9,20 +9,37 @@ const pool = require('./db/pool');
 // Impor router modul
 const authRouter = require('./modules/auth/routes');
 const adminRouter = require('./modules/admin/routes');
+const complaintRouter = require('./modules/complaint/routes');
 
 const app = express();
 
 // 1. Keamanan Header HTTP
-app.use(helmet());
+// Mengizinkan penyajian file statis lintas domain bila diperlukan
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // 2. Akses Lintas Domain (CORS)
 app.use(cors());
 
-// 3. Parsing Request Body (JSON & URL-Encoded) dengan batas ukuran aman (10 MB)
+// 3. Penyajian Berkas Unggahan Statis (/uploads)
+// Dilengkapi header X-Content-Type-Options: nosniff untuk mencegah MIME sniffing
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+  },
+  express.static(config.uploadDir)
+);
+
+// 4. Parsing Request Body (JSON & URL-Encoded) dengan batas ukuran aman (10 MB)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 4. Pembatasan Laju Permintaan Umum (Rate Limiter)
+// 5. Pembatasan Laju Permintaan Umum (Rate Limiter)
 // Dikecualikan saat mode test agar tidak menghambat pengujian otomatis
 if (config.env !== 'test') {
   const generalLimiter = rateLimit({
@@ -41,7 +58,7 @@ if (config.env !== 'test') {
   app.use(generalLimiter);
 }
 
-// 5. Router API dengan Prefix /api/v1
+// 6. Router API dengan Prefix /api/v1
 const apiV1Router = express.Router();
 
 /**
@@ -74,11 +91,12 @@ apiV1Router.get('/health', async (req, res) => {
 // Daftarkan sub-router modul ke /api/v1
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/admin', adminRouter);
+apiV1Router.use('/complaints', complaintRouter);
 
 // Daftarkan router utama dengan prefix /api/v1
 app.use('/api/v1', apiV1Router);
 
-// 6. Penanganan Rute Tidak Ditemukan (404) & Global Error Handler
+// 7. Penanganan Rute Tidak Ditemukan (404) & Global Error Handler
 app.use(notFound);
 app.use(errorHandler);
 
