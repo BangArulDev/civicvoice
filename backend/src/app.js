@@ -6,6 +6,10 @@ const config = require('./common/config');
 const { errorHandler, notFound } = require('./common/middleware');
 const pool = require('./db/pool');
 
+// Impor router modul
+const authRouter = require('./modules/auth/routes');
+const adminRouter = require('./modules/admin/routes');
+
 const app = express();
 
 // 1. Keamanan Header HTTP
@@ -18,7 +22,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 4. Pembatasan Laju Permintaan (Rate Limiter)
+// 4. Pembatasan Laju Permintaan Umum (Rate Limiter)
 // Dikecualikan saat mode test agar tidak menghambat pengujian otomatis
 if (config.env !== 'test') {
   const generalLimiter = rateLimit({
@@ -66,6 +70,10 @@ apiV1Router.get('/health', async (req, res) => {
     });
   }
 });
+
+// Daftarkan sub-router modul ke /api/v1
+apiV1Router.use('/auth', authRouter);
+apiV1Router.use('/admin', adminRouter);
 
 // Daftarkan router utama dengan prefix /api/v1
 app.use('/api/v1', apiV1Router);

@@ -1,4 +1,6 @@
+const bcrypt = require('bcryptjs');
 const pool = require('../pool');
+const config = require('../../common/config');
 
 async function runSeed() {
   const client = await pool.connect();
@@ -18,13 +20,16 @@ async function runSeed() {
       { name: 'admin', description: 'Administrator pengelola sistem CivicVoice' },
     ];
 
+    const rolesMap = {};
     for (const role of rolesData) {
-      await client.query(
+      const { rows } = await client.query(
         `INSERT INTO roles (name, description)
          VALUES ($1, $2)
-         ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description;`,
+         ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description
+         RETURNING id, name;`,
         [role.name, role.description]
       );
+      rolesMap[role.name] = rows[0].id;
     }
 
     // -------------------------------------------------------------------------
@@ -116,7 +121,61 @@ async function runSeed() {
     }
 
     // -------------------------------------------------------------------------
-    // 4. Service Areas (Wilayah Layanan Kabupaten Grobogan)
+    // 4. Pengguna Awal / Demo Users (admin, operator, petugas SKPD, warga)
+    // -------------------------------------------------------------------------
+    console.log('-> Mengisi tabel users dengan akun pengujian...');
+    const demoPassword =
+      config.seed.userPassword ||
+      process.env.SEED_USER_PASSWORD ||
+      'password_demo_civicvoice_rahasia_123';
+
+    // Hash kata sandi dengan bcrypt (cost 12 sesuai SRS NFR-S-01)
+    const passwordHash = await bcrypt.hash(demoPassword, 12);
+
+    const demoUsers = [
+      {
+        email: 'admin@civicvoice.grobo.go.id',
+        fullName: 'Administrator CivicVoice',
+        roleName: 'admin',
+        skpdId: null,
+      },
+      {
+        email: 'operator@civicvoice.grobo.go.id',
+        fullName: 'Operator Triase Grobogan',
+        roleName: 'operator',
+        skpdId: null,
+      },
+      {
+        email: 'petugas.dpu@civicvoice.grobo.go.id',
+        fullName: 'Petugas Dinas PU',
+        roleName: 'skpd',
+        skpdId: skpdMap['Dinas Pekerjaan Umum'] || null,
+      },
+      {
+        email: 'warga.demo@gmail.com',
+        fullName: 'Warga Demo Grobogan',
+        roleName: 'warga',
+        skpdId: null,
+      },
+    ];
+
+    for (const u of demoUsers) {
+      const roleId = rolesMap[u.roleName];
+      await client.query(
+        `INSERT INTO users (email, password_hash, full_name, role_id, skpd_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)
+         ON CONFLICT (email) DO UPDATE SET
+           password_hash = EXCLUDED.password_hash,
+           full_name = EXCLUDED.full_name,
+           role_id = EXCLUDED.role_id,
+           skpd_id = EXCLUDED.skpd_id,
+           is_active = TRUE;`,
+        [u.email, passwordHash, u.fullName, roleId, u.skpdId]
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. Service Areas (Wilayah Layanan Kabupaten Grobogan)
     // -------------------------------------------------------------------------
     console.log('-> Mengisi tabel service_areas (Kabupaten Grobogan)...');
     /*
