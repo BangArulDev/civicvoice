@@ -189,23 +189,20 @@ async function runSeed() {
     const groboganPolygonWKT =
       'SRID=4326;MULTIPOLYGON(((110.55 -7.45, 111.15 -7.45, 111.15 -6.95, 110.55 -6.95, 110.55 -7.45)))';
 
-    const existingArea = await client.query(
-      `SELECT id FROM service_areas WHERE name = $1 LIMIT 1;`,
-      ['Kabupaten Grobogan']
-    );
+    // Periksa apakah tabel service_areas sudah terisi (misalnya oleh seed-boundary)
+    const serviceAreasCountRes = await client.query('SELECT COUNT(*) AS count FROM service_areas;');
+    const serviceAreasCount = parseInt(serviceAreasCountRes.rows[0].count, 10);
 
-    if (existingArea.rows.length === 0) {
+    if (serviceAreasCount === 0) {
       await client.query(
         `INSERT INTO service_areas (name, geom, is_active)
          VALUES ('Kabupaten Grobogan', ST_GeogFromText($1), TRUE);`,
         [groboganPolygonWKT]
       );
+      console.log('   Tabel service_areas kosong: poligon placeholder berhasil disisipkan.');
     } else {
-      await client.query(
-        `UPDATE service_areas
-         SET geom = ST_GeogFromText($1), is_active = TRUE
-         WHERE id = $2;`,
-        [groboganPolygonWKT, existingArea.rows[0].id]
+      console.log(
+        '   Tabel service_areas sudah terisi: batas wilayah yang ada dipertahankan (tidak ditimpa placeholder).'
       );
     }
 

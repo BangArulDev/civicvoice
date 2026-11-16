@@ -50,16 +50,18 @@ describe('M1 Complaint Module Integration Tests', () => {
       );
     `);
 
-    // Pastikan batas Grobogan aktif di service_areas
-    await pool.query(`
-      INSERT INTO service_areas (name, geom, is_active)
-      VALUES (
-        'Kabupaten Grobogan',
-        ST_GeogFromText('SRID=4326;MULTIPOLYGON(((110.55 -7.45, 111.15 -7.45, 111.15 -6.95, 110.55 -6.95, 110.55 -7.45)))'),
-        TRUE
-      )
-      ON CONFLICT DO NOTHING;
-    `);
+    // Pastikan batas Grobogan aktif di service_areas (hanya pasang placeholder bila tabel masih kosong)
+    const areaCheck = await pool.query('SELECT COUNT(*) AS count FROM service_areas;');
+    if (parseInt(areaCheck.rows[0].count, 10) === 0) {
+      await pool.query(`
+        INSERT INTO service_areas (name, geom, is_active)
+        VALUES (
+          'Kabupaten Grobogan',
+          ST_GeogFromText('SRID=4326;MULTIPOLYGON(((110.55 -7.45, 111.15 -7.45, 111.15 -6.95, 110.55 -6.95, 110.55 -7.45)))'),
+          TRUE
+        );
+      `);
+    }
 
     // 3. Ambil satu categoryId aktif
     const catRes = await pool.query(

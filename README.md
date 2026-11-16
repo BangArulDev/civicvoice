@@ -144,9 +144,17 @@ Jalankan skrip migrasi untuk membentuk tabel-tabel sesuai spesifikasi ERD:
 # Menjalankan migrasi skema tabel
 npm run migrate
 
-# Memasukkan data awal (kategori aduan, akun admin & SKPD default)
+# Memasukkan data awal standar (peran, kategori, akun demo, dsb.)
 npm run seed
+
+# Memuat batas administratif resmi Kabupaten Grobogan dari berkas GeoJSON
+npm run seed:boundary
 ```
+
+> **Atribusi Data Spasial & Batas Wilayah**:
+> Batas wilayah administratif Kabupaten Grobogan bersumber dari **OpenStreetMap** di bawah lisensi **Open Database License (ODbL)**.
+> Wajib mencantumkan atribusi resmi: **"© OpenStreetMap contributors"** (informasi hak cipta dan lisensi lengkap: [osm.org/copyright](https://www.openstreetmap.org/copyright)).
+
 
 ### 8. Jalankan Server Backend
 
