@@ -161,6 +161,17 @@ describe('M2 Triage Queue Module Integration Tests', () => {
     await pool.query("UPDATE complaints SET status = 'diverifikasi' WHERE id = $1;", [
       complaint2Id,
     ]);
+
+    // 6. Set waktu created_at aduan uji lebih awal agar selalu berada di urutan teratas antrean FIFO (halaman 1)
+    await pool.query("UPDATE complaints SET created_at = '2020-01-01 01:00:00Z' WHERE id = $1;", [
+      complaint1Id,
+    ]);
+    await pool.query("UPDATE complaints SET created_at = '2020-01-01 02:00:00Z' WHERE id = $1;", [
+      complaint2Id,
+    ]);
+    await pool.query("UPDATE complaints SET created_at = '2020-01-01 03:00:00Z' WHERE id = $1;", [
+      complaint3Id,
+    ]);
   });
 
   afterAll(async () => {

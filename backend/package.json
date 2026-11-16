@@ -8,9 +8,11 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
     "migrate": "node src/db/migrate.js",
     "seed": "node src/db/seeds/index.js",
-    "seed:boundary": "node src/db/seeds/seed-boundary.js"
+    "seed:boundary": "node src/db/seeds/seed-boundary.js",
+    "seed:demo": "node src/db/seeds/seed-demo.js"
   },
   "keywords": [
     "civicvoice",
