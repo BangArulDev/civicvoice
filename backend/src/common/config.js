@@ -42,6 +42,7 @@ const uploadDir = path.isAbsolute(rawUploadDir)
 const config = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT, 10) || 3000,
+  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3001',
   uploadDir,
   db: {
     url: process.env.DATABASE_URL,

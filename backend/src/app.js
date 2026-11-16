@@ -10,26 +10,36 @@ const pool = require('./db/pool');
 const authRouter = require('./modules/auth/routes');
 const adminRouter = require('./modules/admin/routes');
 const complaintRouter = require('./modules/complaint/routes');
+const categoryRouter = require('./modules/complaint/categoryRoutes');
 const triageRouter = require('./modules/triage/routes');
 
 const app = express();
 
-// 1. Keamanan Header HTTP
-// Mengizinkan penyajian file statis lintas domain bila diperlukan
+// 1. Keamanan Header HTTP (Helmet dengan konfigurasi default: CORP same-origin)
+app.use(helmet());
+
+// 2. Akses Lintas Domain (CORS)
+// Mengizinkan origin dari variabel lingkungan CORS_ORIGIN (default: http://localhost:3001)
+// dengan header Authorization dan Content-Type yang diizinkan
 app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  cors({
+    origin: config.corsOrigin.includes(',')
+      ? config.corsOrigin.split(',').map((s) => s.trim())
+      : config.corsOrigin,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+    credentials: true,
   })
 );
 
-// 2. Akses Lintas Domain (CORS)
-app.use(cors());
-
 // 3. Penyajian Berkas Unggahan Statis (/uploads)
-// Dilengkapi header X-Content-Type-Options: nosniff untuk mencegah MIME sniffing
+// Menambahkan header Cross-Origin-Resource-Policy: cross-origin KHUSUS pada route ini saja,
+// agar berkas foto dari port 3000 dapat dimuat dengan aman di browser halaman frontend (port 3001).
+// Header X-Content-Type-Options: nosniff juga disertakan untuk mencegah MIME-sniffing.
 app.use(
   '/uploads',
   (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     next();
   },
@@ -92,6 +102,7 @@ apiV1Router.get('/health', async (req, res) => {
 // Daftarkan sub-router modul ke /api/v1
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/admin', adminRouter);
+apiV1Router.use('/categories', categoryRouter);
 apiV1Router.use('/complaints', complaintRouter);
 apiV1Router.use('/triage', triageRouter);
 

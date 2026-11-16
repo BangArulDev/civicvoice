@@ -48,9 +48,19 @@ async function getComplaintById(req, res, next) {
   }
 }
 
+async function listCategories(req, res, next) {
+  try {
+    const result = await complaintService.listCategories();
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   createComplaint,
   listMyComplaints,
   trackComplaint,
   getComplaintById,
+  listCategories,
 };

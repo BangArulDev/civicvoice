@@ -279,9 +279,20 @@ async function getComplaintById(id, user) {
   return formatComplaintResponse(row);
 }
 
+async function listCategories() {
+  const categories = await complaintRepository.findAllActiveCategories();
+  return {
+    data: categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+    })),
+  };
+}
+
 module.exports = {
   createComplaint,
   listMyComplaints,
   trackComplaint,
   getComplaintById,
+  listCategories,
 };

@@ -118,6 +118,24 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /categories:
+    get:
+      tags: [Complaints]
+      summary: Daftar kategori aduan (untuk form pelaporan)
+      operationId: listCategories
+      security: []
+      responses:
+        '200':
+          description: Daftar kategori aktif, diurutkan menurut nama
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
   /complaints:
     post:
       tags: [Complaints]
@@ -763,6 +781,14 @@ components:
         createdAt:
           type: string
           format: date-time
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: Jalan Rusak
     GeoPoint:
       type: object
       required: [lat, lng]

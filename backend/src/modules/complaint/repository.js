@@ -32,6 +32,20 @@ async function getSuggestedSkpdId(categoryId, client = pool) {
 }
 
 /**
+ * Mengambil semua kategori aduan aktif yang diurutkan menurut nama ASC.
+ */
+async function findAllActiveCategories() {
+  const query = `
+    SELECT id, name
+    FROM categories
+    WHERE is_active = TRUE
+    ORDER BY name ASC;
+  `;
+  const { rows } = await pool.query(query);
+  return rows;
+}
+
+/**
  * Memeriksa keberadaan kategori aduan.
  */
 async function findCategoryById(categoryId, client = pool) {
@@ -281,6 +295,7 @@ module.exports = {
   isInsideServiceArea,
   getSuggestedSkpdId,
   findCategoryById,
+  findAllActiveCategories,
   generateTicketNo,
   insertComplaint,
   insertComplaintPhotos,
